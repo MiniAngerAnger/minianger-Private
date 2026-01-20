@@ -1,0 +1,61 @@
+{
+    "fiat_assets": [
+        {
+            "platform": "\u5fae\u4fe1 (WeChat)",
+            "currency": "CNY",
+            "amount": 612.0
+        },
+        {
+            "platform": "\u652f\u4ed8\u5b9d (Alipay)",
+            "currency": "CNY",
+            "amount": 0.0
+        },
+        {
+            "platform": "\u4e2d\u56fd\u5efa\u8bbe\u94f6\u884c",
+            "currency": "CNY",
+            "amount": 1540.0
+        },
+        {
+            "platform": "ABA \u94f6\u884c",
+            "currency": "USD",
+            "amount": 777.7700000000001
+        },
+        {
+            "platform": "Revolut \u94f6\u884c",
+            "currency": "GBP",
+            "amount": 236.0
+        },
+        {
+            "platform": "Revolut \u94f6\u884c",
+            "currency": "USD",
+            "amount": 3500.0
+        },
+        {
+            "platform": "Revolut \u94f6\u884c",
+            "currency": "IDR",
+            "amount": 82310.0
+        },
+        {
+            "platform": "\u7f8e\u5143\u73b0\u91d1",
+            "currency": "USD",
+            "amount": 3502.0
+        },
+        {
+            "platform": "\u5370\u5c3c\u76fe\u73b0\u91d1",
+            "currency": "IDR",
+            "amount": 3775000.0
+        }
+    ],
+    "crypto_assets": [
+        {
+            "platform": "\u5e01\u5b89",
+            "currency": "USDT",
+            "amount": 700.0
+        },
+        {
+            "platform": "\u6570\u5b57\u8d27\u5e01\u94b1\u5305",
+            "currency": "USDT",
+            "amount": 10.0
+        }
+    ]
+}
