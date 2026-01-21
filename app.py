@@ -8,7 +8,7 @@ def check_auth():
     if "auth_role" not in st.session_state: st.session_state.auth_role = None
     if st.session_state.auth_role: return True
     st.title("🔐 NomadVault 权限验证")
-    pwd = st.text_input("请输入访问口令:", type="password", key="auth_v669")
+    pwd = st.text_input("请输入访问口令:", type="password", key="auth_v674")
     if st.button("进入系统"):
         if pwd == "13571357": st.session_state.auth_role = "admin"; st.rerun()
         elif pwd == "1111111": st.session_state.auth_role = "staff"; st.rerun()
@@ -68,25 +68,33 @@ with st.sidebar:
         st.divider()
         with st.expander("📝 修正持仓"):
             with st.form("fix"):
-                sf = st.selectbox("账户", opt_list); vf = st.number_input("金额", format="%.2f")
-                if st.form_submit_button("确认"):
-                    for ck in assets:
-                        for i in assets[ck]:
-                            if f"{i['platform']}|{i['currency']}" == sf: i['amount'] = vf
-                    save_db('assets.json', assets); st.rerun()
+                sf = st.selectbox("账户", opt_list)
+                vf_raw = st.text_input("输入新金额", placeholder="直接输入数字")
+                if st.form_submit_button("确认修正"):
+                    try:
+                        vf = float(vf_raw)
+                        for ck in assets:
+                            for i in assets[ck]:
+                                if f"{i['platform']}|{i['currency']}" == sf: i['amount'] = vf
+                        save_db('assets.json', assets); st.rerun()
+                    except: st.error("请填入有效数字")
         with st.expander("➕ 新增资产"):
             with st.form("add"):
-                na = st.number_input("金额", min_value=0.0); np = st.text_input("平台")
+                na_raw = st.text_input("金额", placeholder="直接输入数字")
+                np = st.text_input("平台名称")
                 nc = st.selectbox("币种", ["USDT", "USD", "CNY", "IDR", "GBP"])
-                if st.form_submit_button("确认"):
-                    if np:
-                        tg = 'crypto_assets' if nc in ["USDT", "USD"] else 'fiat_assets'
-                        assets.setdefault(tg, []).append({"platform": np, "currency": nc, "amount": na})
-                        save_db('assets.json', assets); st.rerun()
+                if st.form_submit_button("确认添加"):
+                    try:
+                        na = float(na_raw)
+                        if np:
+                            tg = 'crypto_assets' if nc in ["USDT", "USD"] else 'fiat_assets'
+                            assets.setdefault(tg, []).append({"platform": np, "currency": nc, "amount": na})
+                            save_db('assets.json', assets); st.rerun()
+                    except: st.error("请填入有效数字")
         with st.expander("🗑️ 移除资产"):
             with st.form("del"):
                 sd = st.selectbox("账户", opt_list, key="d")
-                if st.form_submit_button("确认"):
+                if st.form_submit_button("确认移除"):
                     p, c = sd.split('|')
                     for ck in assets: assets[ck] = [i for i in assets[ck] if not (i['platform'] == p and i['currency'] == c)]
                     save_db('assets.json', assets); st.rerun()
@@ -95,22 +103,44 @@ with st.sidebar:
 
 # --- 3. 记账组件 ---
 def render_ledger(target):
-    ci, cl = target.columns([1, 2])
+    ci, cl = target.columns([0.9, 2.1])
     with ci:
         st.subheader("📝 录入流水")
-        with st.form("l", clear_on_submit=True):
-            ty = st.radio("类型", ["支出", "收入"], horizontal=True)
-            tc = st.selectbox("分类", ["🚬 烟酒", "🍚 外餐", "🎰 德州", "🏠 房租", "💰 工资", "📈 投资", "🛠️ 其他"])
-            ta = st.selectbox("账户", opt_list)
-            tm = st.number_input("金额", min_value=0.0); tn = st.text_input("备注")
-            if st.form_submit_button("确认"):
-                pn, pc = ta.split('|'); uv = round(tm * rates.get(pc, 1.0), 6); cv = round(uv * (1/rates['CNY']), 2)
-                logs.insert(0, {"时间": get_time(), "分类": tc, "账户": pn, "类型": ty, "金额": tm, "币种": pc, "等值USDT": uv, "等值CNY": cv, "备注": tn})
-                save_db('transactions.json', logs)
-                for ck in assets:
-                    for i in assets[ck]:
-                        if i['platform'] == pn and i['currency'] == pc: i['amount'] = round((i['amount'] - tm) if ty == "支出" else (i['amount'] + tm), 4)
-                save_db('assets.json', assets); st.rerun()
+        rec_type = st.radio("类型", ["支出", "收入"], horizontal=True, label_visibility="collapsed")
+        if rec_type == "支出":
+            with st.form("exp_form", clear_on_submit=True):
+                tc = st.selectbox("支出分类", ["🚬 烟酒", "🍚 外餐", "🎰 德州", "🏠 房租", "🛒 购物", "🛠️ 其他"])
+                ta = st.selectbox("支付账户", opt_list)
+                tm_raw = st.text_input("输入金额", placeholder="数字...")
+                tn = st.text_input("备注")
+                if st.form_submit_button("确认存入支出"):
+                    try:
+                        tm = float(tm_raw)
+                        pn, pc = ta.split('|'); uv = round(tm * rates.get(pc, 1.0), 6); cv = round(uv * (1/rates['CNY']), 2)
+                        logs.insert(0, {"时间": get_time(), "分类": tc, "账户": pn, "类型": "支出", "金额": tm, "币种": pc, "等值USDT": uv, "等值CNY": cv, "备注": tn})
+                        save_db('transactions.json', logs)
+                        for ck in assets:
+                            for i in assets[ck]:
+                                if i['platform'] == pn and i['currency'] == pc: i['amount'] = round(i['amount'] - tm, 4)
+                        save_db('assets.json', assets); st.rerun()
+                    except: st.error("请输入有效数字")
+        else:
+            with st.form("inc_form", clear_on_submit=True):
+                tc = st.selectbox("收入分类", ["💰 工资", "📈 投资", "🃏 德州盈利", "🎁 报销", "🔄 其他收入"])
+                ta = st.selectbox("收款账户", opt_list)
+                tm_raw = st.text_input("输入金额", placeholder="数字...")
+                tn = st.text_input("备注")
+                if st.form_submit_button("确认存入收入"):
+                    try:
+                        tm = float(tm_raw)
+                        pn, pc = ta.split('|'); uv = round(tm * rates.get(pc, 1.0), 6); cv = round(uv * (1/rates['CNY']), 2)
+                        logs.insert(0, {"时间": get_time(), "分类": tc, "账户": pn, "类型": "收入", "金额": tm, "币种": pc, "等值USDT": uv, "等值CNY": cv, "备注": tn})
+                        save_db('transactions.json', logs)
+                        for ck in assets:
+                            for i in assets[ck]:
+                                if i['platform'] == pn and i['currency'] == pc: i['amount'] = round(i['amount'] + tm, 4)
+                        save_db('assets.json', assets); st.rerun()
+                    except: st.error("请输入有效数字")
     with cl:
         st.subheader("📜 历史流水 (全展示)")
         if logs:
@@ -146,7 +176,7 @@ if st.session_state.auth_role == "admin":
             df_m = df[df['Month'] == curr_m]
             exp_m = df_m[df_m['类型'] == '支出']['等值USDT'].sum(); inc_m = df_m[df_m['类型'] == '收入']['等值USDT'].sum()
             m1, m2, m3 = st.columns(3)
-            m1.metric("🔴 本月支出", f"${exp_m:,.2f}"); m2.metric("🟢 本月收入", f"${inc_m:,.2f}"); m3.metric("⚖️ 净盈亏", f"${inc_m - exp_m:,.2f}", delta=float(inc_m - exp_m))
+            m1.metric("🔴 本月总支出", f"${exp_m:,.2f}"); m2.metric("🟢 本月总收入", f"${inc_m:,.2f}"); m3.metric("⚖️ 本月净盈亏", f"${inc_m - exp_m:,.2f}", delta=float(inc_m - exp_m))
             st.divider()
             cl, cr = st.columns(2)
             with cl:
