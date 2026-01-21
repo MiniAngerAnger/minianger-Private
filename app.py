@@ -8,7 +8,7 @@ def check_auth():
     if "auth_role" not in st.session_state: st.session_state.auth_role = None
     if st.session_state.auth_role: return True
     st.title("🔐 NomadVault 权限验证")
-    pwd = st.text_input("请输入访问口令:", type="password", key="auth_v700")
+    pwd = st.text_input("请输入访问口令:", type="password", key="auth_v701")
     if st.button("进入系统"):
         if pwd == "13571357": st.session_state.auth_role = "admin"; st.rerun()
         elif pwd == "1111111": st.session_state.auth_role = "staff"; st.rerun()
@@ -57,7 +57,7 @@ def save_db(f, d):
     with open(f, 'w', encoding='utf-8') as fs: json.dump(d, fs, indent=4)
     st.cache_data.clear()
 
-# 变量初始化防报错
+# 变量初始化：强制在渲染前锁定 total_usd 变量
 if 'privacy' not in st.session_state: st.session_state.privacy = False
 rates = fetch_rates()
 assets = load_db('assets.json', {"fiat_assets": [], "crypto_assets": []}, rates)
@@ -66,7 +66,7 @@ all_a = assets.get('fiat_assets', []) + assets.get('crypto_assets', [])
 total_usd = sum([float(i['amount']) * rates.get(i['currency'], 1.0) for i in all_a])
 opt_list = [f"{i['platform']}|{i['currency']}" for i in all_a]
 
-# --- 2. 侧边栏 (修复第98行语法错误) ---
+# --- 2. 侧边栏 (修复第98行语法报错) ---
 with st.sidebar:
     st.header("⚙️ 控制中心")
     if st.button("🔄 刷新汇率"):
@@ -78,43 +78,34 @@ with st.sidebar:
             st.rerun()
         st.divider()
         with st.expander("📝 修正持仓"):
-            with st.form("fix_v700", clear_on_submit=True):
-                sf = st.selectbox("账户", opt_list); vf_raw = st.text_input("金额", placeholder="输入数字")
+            with st.form("fix_v701", clear_on_submit=True):
+                sf = st.selectbox("选择账户", opt_list); vf_raw = st.text_input("金额", placeholder="输入数字")
                 if st.form_submit_button("确认修正"):
                     try:
                         v_cl = vf_raw.replace(',', '').strip()
                         if v_cl:
-                            vf = round(float(v_cl), 4); [assets[ck][i].update({"amount": vf}) for ck in assets for i, x in enumerate(assets[ck]) if f"{x['platform']}|{x['currency']}" == sf]
+                            vf = round(float(v_cl), 4)
+                            for ck in assets:
+                                for x in assets[ck]:
+                                    if f"{x['platform']}|{x['currency']}" == sf: x['amount'] = vf
                             save_db('assets.json', assets); st.rerun()
-                    except: st.error("输入非法")
-        with st.expander("➕ 新增资产"):
-            with st.form("add_v700", clear_on_submit=True):
-                na_raw = st.text_input("初始金额", placeholder="输入数字"); np = st.text_input("平台名称")
-                nc = st.selectbox("币种", ["USDT", "USD", "CNY", "IDR", "GBP"])
-                if st.form_submit_button("确认添加"):
-                    try:
-                        n_cl = na_raw.replace(',', '').strip()
-                        if n_cl and np:
-                            na = round(float(n_cl), 4); tg = 'crypto_assets' if nc in ["USDT", "USD"] else 'fiat_assets'
-                            assets.setdefault(tg, []).append({"platform": np, "currency": nc, "amount": na})
-                            save_db('assets.json', assets); st.rerun()
-                    except: st.error("格式错误")
+                    except: st.error("非法输入")
     st.divider()
     if st.button("🚪 退出登录"):
         st.session_state.auth_role = None
         st.rerun()
 
-# --- 3. 记账组件 (彻底消除假报错) ---
+# --- 3. 记账组件 (彻底消除虚假报错) ---
 def render_ledger(target):
     ci, cl = target.columns([0.9, 2.1])
     with ci:
         st.subheader("📝 录入流水")
         ty = st.radio("T", ["支出", "收入"], horizontal=True, label_visibility="collapsed")
-        # 物理容器：入库即刷新，不给假报错留机会
+        # 物理容器：数据一旦写入即销毁提示，不再读秒报错
         msg_area = st.empty()
-        with st.form(key=f"led_v700_{ty}", clear_on_submit=True):
+        with st.form(key=f"led_v701_{ty}", clear_on_submit=True):
             tc = st.selectbox("分类", ["🚬 烟酒", "🍚 外餐", "🎰 德州", "🏠 房租", "🛒 购物", "🛠️ 其他"] if ty=="支出" else ["💰 工资", "📈 投资", "🃏 德州盈利", "🎁 报销", "🔄 收入"])
-            ta = st.selectbox("账户", opt_list); tm_raw = st.text_input("金额", placeholder="输入数字...", key=f"val_{ty}"); tn = st.text_input("备注")
+            ta = st.selectbox("账户", opt_list); tm_raw = st.text_input("金额", placeholder="数字...", key=f"v_{ty}"); tn = st.text_input("备注")
             if st.form_submit_button("确认存入"):
                 clean_v = tm_raw.replace(',', '').strip()
                 if clean_v:
@@ -127,15 +118,15 @@ def render_ledger(target):
                             for i in assets[ck]:
                                 if i['platform'] == pn and i['currency'] == pc: i['amount'] = round((i['amount']-tm) if ty=="支出" else (i['amount']+tm), 4)
                         save_db('assets.json', assets)
-                        # 数据已入库，瞬间闪刷，绝不再报空值错
+                        # 数据已成功入库，物理抹除提示区，防止回读空值报错
                         st.rerun()
-                    except: msg_area.error("⚠️ 金额框必须填纯数字")
+                    except: msg_area.error("⚠️ 请输入纯数字")
                 else: msg_area.warning("⚠️ 金额不能为空")
     with cl:
         st.subheader("📜 历史流水")
         if logs:
             df_l = pd.DataFrame(logs).head(50)
-            # 物理锁定 8 列，屏蔽月份和 USDT 列
+            # 锁定 8 列，严格排除月份和等值 USDT
             disp_cols = ["时间", "分类", "账户", "类型", "金额", "币种", "等值USD", "备注"]
             st.dataframe(df_l[[c for c in disp_cols if c in df_l.columns]], use_container_width=True, hide_index=True)
             if st.session_state.auth_role == "admin" and st.button("⏪ 撤销上笔"):
@@ -148,7 +139,7 @@ def render_ledger(target):
 # --- 4. 渲染 ---
 if st.session_state.auth_role == "admin":
     st.title("🏝️ 资产指挥部")
-    # 总资产口径对齐：USD 展示
+    # 总资产展示对齐：USD 展示
     dt_str = f"${total_usd:,.2f}" if not st.session_state.privacy else "🔒 ******"
     st.markdown(f"### 总资产 (USD): <span style='color:#f0b90b; font-size:32px;'>{dt_str}</span>", unsafe_allow_html=True)
     r1, r2, r3 = st.columns(3)
@@ -162,24 +153,23 @@ if st.session_state.auth_role == "admin":
             if not st.session_state.privacy:
                 fig = px.pie(df_plot, values='现值(USD)', names='平台', hole=.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
                 fig.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0), height=350); st.plotly_chart(fig, use_container_width=True)
-            else: st.info("🔒 隐私隐藏图表")
-        st.subheader("资产明细")
+        st.subheader("资产分布明细表")
         tr = [{"平台": i['platform'], "数量": i['amount'] if not st.session_state.privacy else "🔒", "币种": i['currency'], "现值(USD)": round(float(i['amount']) * rates.get(i['currency'], 1.0), 2) if not st.session_state.privacy else "🔒"} for i in all_a]
         if tr: st.table(pd.DataFrame(tr))
     with t2: render_ledger(st)
     with t3:
         if logs:
             df = pd.DataFrame(logs); df['dt'] = pd.to_datetime(df['时间'], errors='coerce', format='mixed'); df = df.dropna(subset=['dt']); df['Month'] = df['dt'].dt.strftime('%Y-%m')
-            curr_m = st.selectbox("月份", sorted(df['Month'].unique(), reverse=True)); df_m = df[df['Month'] == curr_m]
+            curr_m = st.selectbox("月份筛选", sorted(df['Month'].unique(), reverse=True)); df_m = df[df['Month'] == curr_m]
             exp_m = df_m[df_m['类型'] == '支出']['等值USD'].sum(); inc_m = df_m[df_m['类型'] == '收入']['等值USD'].sum()
             m1, m2, m3 = st.columns(3)
             m1.metric("🔴 支出", f"${exp_m:,.2f}"); m2.metric("🟢 收入", f"${inc_m:,.2f}"); m3.metric("⚖️ 盈亏", f"${inc_m - exp_m:,.2f}", delta=float(inc_m - exp_m))
             st.divider(); cl, cr = st.columns(2)
             with cl:
-                st.write("### 支出占比"); de = df_m[df_m['类型'] == '支出']
+                st.write("### 支出构成"); de = df_m[df_m['类型'] == '支出']
                 if not de.empty: st.plotly_chart(px.pie(de, values='等值USD', names='分类', hole=.4, template="plotly_dark"), use_container_width=True)
             with cr:
-                st.write("### 收入占比"); di = df_m[df_m['类型'] == '收入']
+                st.write("### 收入构成"); di = df_m[df_m['类型'] == '收入']
                 if not di.empty: st.plotly_chart(px.pie(di, values='等值USD', names='分类', hole=.4, template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel), use_container_width=True)
 else:
     st.title("📝 记账助手"); render_ledger(st)
